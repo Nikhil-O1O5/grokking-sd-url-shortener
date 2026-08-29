@@ -80,7 +80,7 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrCustomAliasTaken) {
-			writeJSON(w, http.StatusConflict, errorResponse{Error: "custom alias already taken"})
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "you already have a URL with this alias"})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to shorten URL"})

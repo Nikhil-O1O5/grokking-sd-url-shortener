@@ -21,13 +21,15 @@ var ErrCustomAliasTaken = errors.New("custom alias already taken")
 type URLService struct {
 	urlStore   *store.URLStore
 	cacheStore *store.CacheStore
+	keyStore   *store.KeyStore
 	kgsClient  *kgs.Client
 }
 
-func NewURLService(urlStore *store.URLStore, cacheStore *store.CacheStore, kgsClient *kgs.Client) *URLService {
+func NewURLService(urlStore *store.URLStore, cacheStore *store.CacheStore, keyStore *store.KeyStore, kgsClient *kgs.Client) *URLService {
 	return &URLService{
 		urlStore:   urlStore,
 		cacheStore: cacheStore,
+		keyStore:   keyStore,
 		kgsClient:  kgsClient,
 	}
 }
@@ -49,14 +51,14 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 	var hash string
 
 	if req.CustomAlias != "" {
-		existing, err := s.urlStore.GetByHash(req.CustomAlias)
+		hash = userAliasHash(req.UserID, req.CustomAlias)
+		existing, err := s.urlStore.GetByHash(hash)
 		if err != nil {
 			return nil, fmt.Errorf("check alias: %w", err)
 		}
 		if existing != nil {
 			return nil, ErrCustomAliasTaken
 		}
-		hash = req.CustomAlias
 	} else {
 		key, err := s.kgsClient.GetKey(ctx)
 		if err != nil {
@@ -71,6 +73,7 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 		Hash:        hash,
 		OriginalURL: req.OriginalURL,
 		UserID:      req.UserID,
+		IsCustom:    req.CustomAlias != "",
 		ExpiresAt:   expiresAt,
 	}
 
@@ -98,8 +101,31 @@ func (s *URLService) ResolveURL(ctx context.Context, hash string) (*model.URL, e
 		return nil, nil
 	}
 
+	if time.Now().After(url.ExpiresAt) {
+		_ = s.urlStore.Delete(hash)
+		_ = s.cacheStore.DeleteURL(ctx, hash)
+		if !url.IsCustom {
+			_ = s.keyStore.ReturnKey(hash)
+		}
+		return nil, nil
+	}
+
 	_ = s.cacheStore.SetURL(ctx, hash, url.OriginalURL, url.ExpiresAt)
 	return url, nil
+}
+
+// userAliasHash scopes a custom alias to its owner so two users can use the same alias
+// without conflicting. Uses the first 8 chars of the user UUID as a prefix.
+// e.g. user 550e8400-... with alias "mylink" → "550e8400-mylink"
+func userAliasHash(userID *string, alias string) string {
+	if userID == nil {
+		return alias
+	}
+	prefix := *userID
+	if len(prefix) > 8 {
+		prefix = prefix[:8]
+	}
+	return prefix + "-" + alias
 }
 
 func defaultExpiry(userID *string, custom *time.Time) time.Time {
