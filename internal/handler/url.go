@@ -2,31 +2,34 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	appMiddleware "github.com/Nikhil-O1O5/url-shortener/internal/middleware"
 	"github.com/Nikhil-O1O5/url-shortener/internal/service"
 )
 
 type URLHandler struct {
-	urlService *service.URLService
+	urlService  *service.URLService
+	authService *service.AuthService
 }
 
-func NewURLHandler(urlService *service.URLService) *URLHandler {
-	return &URLHandler{urlService: urlService}
+func NewURLHandler(urlService *service.URLService, authService *service.AuthService) *URLHandler {
+	return &URLHandler{urlService: urlService, authService: authService}
 }
 
 func (h *URLHandler) RegisterRoutes(r chi.Router) {
-	r.Post("/api/v1/shorten", h.ShortenURL)
+	r.With(appMiddleware.OptionalAuth(h.authService)).Post("/api/v1/shorten", h.ShortenURL)
 	r.Get("/{key}", h.RedirectURL)
 }
 
 type shortenRequest struct {
-	LongURL     string `json:"long_url"`
-	CustomAlias string `json:"custom_alias"`
-	ExpireAt    string `json:"expire_at"`
+	LongURL     string `json:"long_url"     validate:"required,url"`
+	CustomAlias string `json:"custom_alias" validate:"omitempty,min=3,max=16,alphanum"`
+	ExpireAt    string `json:"expire_at"    validate:"omitempty"`
 }
 
 type shortenResponse struct {
@@ -46,8 +49,15 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.LongURL == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "long_url is required"})
+	if err := validateStruct(req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: err.Error()})
+		return
+	}
+
+	userID := appMiddleware.GetUserID(r.Context())
+
+	if req.CustomAlias != "" && userID == nil {
+		writeJSON(w, http.StatusUnauthorized, errorResponse{Error: "custom aliases require an account"})
 		return
 	}
 
@@ -64,9 +74,14 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	result, err := h.urlService.ShortenURL(r.Context(), service.ShortenRequest{
 		OriginalURL: req.LongURL,
 		CustomAlias: req.CustomAlias,
+		UserID:      userID,
 		ExpireAt:    expireAt,
 	})
 	if err != nil {
+		if errors.Is(err, service.ErrCustomAliasTaken) {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "custom alias already taken"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to shorten URL"})
 		return
 	}

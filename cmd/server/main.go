@@ -52,11 +52,16 @@ func main() {
 	defer kgsClient.Close()
 	log.Println("connected to KGS")
 
-	urlStore := store.NewURLStore(appDB)
-	urlService := service.NewURLService(urlStore, kgsClient)
-	urlHandler := handler.NewURLHandler(urlService)
+	urlStore  := store.NewURLStore(appDB)
+	userStore := store.NewUserStore(appDB)
 
-	r := handler.NewRouter(urlHandler)
+	urlService  := service.NewURLService(urlStore, kgsClient)
+	authService := service.NewAuthService(userStore, cfg.JWTSecret)
+
+	urlHandler  := handler.NewURLHandler(urlService, authService)
+	authHandler := handler.NewAuthHandler(authService)
+
+	r := handler.NewRouter(urlHandler, authHandler)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPPort,

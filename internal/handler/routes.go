@@ -5,13 +5,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(urlHandler *URLHandler) *chi.Mux {
+func NewRouter(urlHandler *URLHandler, authHandler *AuthHandler) *chi.Mux {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 
+	authHandler.RegisterRoutes(r)
 	urlHandler.RegisterRoutes(r)
 
 	return r
