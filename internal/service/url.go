@@ -23,14 +23,16 @@ type URLService struct {
 	cacheStore *store.CacheStore
 	keyStore   *store.KeyStore
 	kgsClient  *kgs.Client
+	baseURL    string
 }
 
-func NewURLService(urlStore *store.URLStore, cacheStore *store.CacheStore, keyStore *store.KeyStore, kgsClient *kgs.Client) *URLService {
+func NewURLService(urlStore *store.URLStore, cacheStore *store.CacheStore, keyStore *store.KeyStore, kgsClient *kgs.Client, baseURL string) *URLService {
 	return &URLService{
 		urlStore:   urlStore,
 		cacheStore: cacheStore,
 		keyStore:   keyStore,
 		kgsClient:  kgsClient,
+		baseURL:    baseURL,
 	}
 }
 
@@ -83,7 +85,7 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 
 	return &ShortenResponse{
 		Hash:      hash,
-		ShortURL:  fmt.Sprintf("http://localhost:8080/%s", hash),
+		ShortURL:  fmt.Sprintf("%s/%s", s.baseURL, hash),
 		ExpiresAt: expiresAt,
 	}, nil
 }

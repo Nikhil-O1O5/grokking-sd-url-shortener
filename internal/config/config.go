@@ -14,6 +14,7 @@ type Config struct {
 	HTTPPort         string
 	GRPCPort         string
 	JWTSecret        string
+	BaseURL          string
 }
 
 func Load() Config {
@@ -29,6 +30,7 @@ func Load() Config {
 		HTTPPort:         getEnv("HTTP_PORT", ":8080"),
 		GRPCPort:         getEnv("GRPC_PORT", ":50051"),
 		JWTSecret:        getEnv("JWT_SECRET", ""),
+		BaseURL:          getEnv("BASE_URL", "http://localhost:8080"),
 	}
 }
 
