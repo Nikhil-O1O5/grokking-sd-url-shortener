@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package kgs;
+
+option go_package = "github.com/Nikhil-O1O5/url-shortener/proto/kgspb";
+
+service KeyGenerationService {
+  rpc GetKey(GetKeyRequest) returns (GetKeyResponse);
+  rpc ReturnKey(ReturnKeyRequest) returns (ReturnKeyResponse);
+}
+
+message GetKeyRequest {}
+
+message GetKeyResponse {
+  string key = 1;
+}
+
+message ReturnKeyRequest {
+  string key = 1;
+}
+
+message ReturnKeyResponse {
+  bool success = 2;
+}

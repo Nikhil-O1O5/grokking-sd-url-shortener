@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS unused_keys (
+    key        VARCHAR(6) PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS used_keys (
+    key     VARCHAR(6) PRIMARY KEY,
+    used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -1,0 +1,92 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/Nikhil-O1O5/url-shortener/internal/kgs"
+	"github.com/Nikhil-O1O5/url-shortener/internal/model"
+	"github.com/Nikhil-O1O5/url-shortener/internal/store"
+)
+
+const (
+	defaultAnonExpiry = 30 * 24 * time.Hour      // 30 days
+	defaultUserExpiry = 2 * 365 * 24 * time.Hour // 2 years
+)
+
+type URLService struct {
+	urlStore  *store.URLStore
+	kgsClient *kgs.Client
+}
+
+func NewURLService(urlStore *store.URLStore, kgsClient *kgs.Client) *URLService {
+	return &URLService{
+		urlStore:  urlStore,
+		kgsClient: kgsClient,
+	}
+}
+
+type ShortenRequest struct {
+	OriginalURL string
+	CustomAlias string
+	UserID      *string
+	ExpireAt    *time.Time
+}
+
+type ShortenResponse struct {
+	Hash      string
+	ShortURL  string
+	ExpiresAt time.Time
+}
+
+func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*ShortenResponse, error) {
+	var hash string
+
+	if req.CustomAlias != "" {
+		hash = req.CustomAlias
+	} else {
+		key, err := s.kgsClient.GetKey(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get key: %w", err)
+		}
+		hash = key
+	}
+
+	expiresAt := defaultExpiry(req.UserID, req.ExpireAt)
+
+	url := &model.URL{
+		Hash:        hash,
+		OriginalURL: req.OriginalURL,
+		UserID:      req.UserID,
+		ExpiresAt:   expiresAt,
+	}
+
+	if err := s.urlStore.Create(url); err != nil {
+		return nil, fmt.Errorf("store url: %w", err)
+	}
+
+	return &ShortenResponse{
+		Hash:      hash,
+		ShortURL:  fmt.Sprintf("http://localhost:8080/%s", hash),
+		ExpiresAt: expiresAt,
+	}, nil
+}
+
+func (s *URLService) ResolveURL(ctx context.Context, hash string) (*model.URL, error) {
+	url, err := s.urlStore.GetByHash(hash)
+	if err != nil {
+		return nil, fmt.Errorf("resolve url: %w", err)
+	}
+	return url, nil
+}
+
+func defaultExpiry(userID *string, custom *time.Time) time.Time {
+	if custom != nil {
+		return *custom
+	}
+	if userID != nil {
+		return time.Now().Add(defaultUserExpiry)
+	}
+	return time.Now().Add(defaultAnonExpiry)
+}

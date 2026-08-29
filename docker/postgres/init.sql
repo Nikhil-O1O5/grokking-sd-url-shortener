@@ -1,0 +1,2 @@
+CREATE DATABASE urlshortener;
+CREATE DATABASE keydb;
