@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ const (
 	defaultAnonExpiry = 30 * 24 * time.Hour      // 30 days
 	defaultUserExpiry = 2 * 365 * 24 * time.Hour // 2 years
 )
+
+var ErrCustomAliasTaken = errors.New("custom alias already taken")
 
 type URLService struct {
 	urlStore  *store.URLStore
@@ -44,6 +47,13 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 	var hash string
 
 	if req.CustomAlias != "" {
+		existing, err := s.urlStore.GetByHash(req.CustomAlias)
+		if err != nil {
+			return nil, fmt.Errorf("check alias: %w", err)
+		}
+		if existing != nil {
+			return nil, ErrCustomAliasTaken
+		}
 		hash = req.CustomAlias
 	} else {
 		key, err := s.kgsClient.GetKey(ctx)

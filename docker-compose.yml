@@ -30,6 +30,48 @@ services:
       timeout: 5s
       retries: 5
 
+  kgs:
+    build:
+      context: .
+      dockerfile: Dockerfile.kgs
+    container_name: url_shortener_kgs
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KEY_DB_NAME: ${KEY_DB_NAME}
+      GRPC_PORT: ${GRPC_PORT}
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: url_shortener_app
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_DB_NAME: ${APP_DB_NAME}
+      REDIS_ADDR: redis:6379
+      KGS_ADDR: kgs:50051
+      HTTP_PORT: ${HTTP_PORT}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
 volumes:
   postgres_data:
   redis_data:

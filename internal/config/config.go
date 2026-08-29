@@ -13,6 +13,7 @@ type Config struct {
 	KGSAddr          string
 	HTTPPort         string
 	GRPCPort         string
+	JWTSecret        string
 }
 
 func Load() Config {
@@ -27,6 +28,7 @@ func Load() Config {
 		KGSAddr:          getEnv("KGS_ADDR", "localhost:50051"),
 		HTTPPort:         getEnv("HTTP_PORT", ":8080"),
 		GRPCPort:         getEnv("GRPC_PORT", ":50051"),
+		JWTSecret:        getEnv("JWT_SECRET", ""),
 	}
 }
 
