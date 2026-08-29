@@ -18,6 +18,11 @@ func NewURLHandler(urlService *service.URLService) *URLHandler {
 	return &URLHandler{urlService: urlService}
 }
 
+func (h *URLHandler) RegisterRoutes(r chi.Router) {
+	r.Post("/api/v1/shorten", h.ShortenURL)
+	r.Get("/{key}", h.RedirectURL)
+}
+
 type shortenRequest struct {
 	LongURL     string `json:"long_url"`
 	CustomAlias string `json:"custom_alias"`
