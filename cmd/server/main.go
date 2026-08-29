@@ -37,7 +37,7 @@ func main() {
 	}
 	log.Println("connected to urlshortener db")
 
-	_, err = store.NewRedisClient(store.RedisConfig{
+	rdb, err := store.NewRedisClient(store.RedisConfig{
 		Addr: cfg.RedisAddr,
 	})
 	if err != nil {
@@ -52,10 +52,11 @@ func main() {
 	defer kgsClient.Close()
 	log.Println("connected to KGS")
 
-	urlStore  := store.NewURLStore(appDB)
-	userStore := store.NewUserStore(appDB)
+	urlStore   := store.NewURLStore(appDB)
+	userStore  := store.NewUserStore(appDB)
+	cacheStore := store.NewCacheStore(rdb)
 
-	urlService  := service.NewURLService(urlStore, kgsClient)
+	urlService  := service.NewURLService(urlStore, cacheStore, kgsClient)
 	authService := service.NewAuthService(userStore, cfg.JWTSecret)
 
 	urlHandler  := handler.NewURLHandler(urlService, authService)

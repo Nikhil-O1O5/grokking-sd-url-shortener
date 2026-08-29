@@ -19,14 +19,16 @@ const (
 var ErrCustomAliasTaken = errors.New("custom alias already taken")
 
 type URLService struct {
-	urlStore  *store.URLStore
-	kgsClient *kgs.Client
+	urlStore   *store.URLStore
+	cacheStore *store.CacheStore
+	kgsClient  *kgs.Client
 }
 
-func NewURLService(urlStore *store.URLStore, kgsClient *kgs.Client) *URLService {
+func NewURLService(urlStore *store.URLStore, cacheStore *store.CacheStore, kgsClient *kgs.Client) *URLService {
 	return &URLService{
-		urlStore:  urlStore,
-		kgsClient: kgsClient,
+		urlStore:   urlStore,
+		cacheStore: cacheStore,
+		kgsClient:  kgsClient,
 	}
 }
 
@@ -84,10 +86,19 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 }
 
 func (s *URLService) ResolveURL(ctx context.Context, hash string) (*model.URL, error) {
+	if originalURL, err := s.cacheStore.GetURL(ctx, hash); err == nil && originalURL != "" {
+		return &model.URL{Hash: hash, OriginalURL: originalURL}, nil
+	}
+
 	url, err := s.urlStore.GetByHash(hash)
 	if err != nil {
 		return nil, fmt.Errorf("resolve url: %w", err)
 	}
+	if url == nil {
+		return nil, nil
+	}
+
+	_ = s.cacheStore.SetURL(ctx, hash, url.OriginalURL, url.ExpiresAt)
 	return url, nil
 }
 
