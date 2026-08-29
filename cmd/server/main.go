@@ -14,6 +14,7 @@ import (
 	"github.com/Nikhil-O1O5/url-shortener/internal/config"
 	"github.com/Nikhil-O1O5/url-shortener/internal/handler"
 	"github.com/Nikhil-O1O5/url-shortener/internal/kgs"
+	appMiddleware "github.com/Nikhil-O1O5/url-shortener/internal/middleware"
 	"github.com/Nikhil-O1O5/url-shortener/internal/service"
 	"github.com/Nikhil-O1O5/url-shortener/internal/store"
 )
@@ -59,7 +60,9 @@ func main() {
 	urlService  := service.NewURLService(urlStore, cacheStore, kgsClient)
 	authService := service.NewAuthService(userStore, cfg.JWTSecret)
 
-	urlHandler  := handler.NewURLHandler(urlService, authService)
+	rateLimiter := appMiddleware.NewRateLimiter(rdb)
+
+	urlHandler  := handler.NewURLHandler(urlService, authService, rateLimiter)
 	authHandler := handler.NewAuthHandler(authService)
 
 	r := handler.NewRouter(urlHandler, authHandler)

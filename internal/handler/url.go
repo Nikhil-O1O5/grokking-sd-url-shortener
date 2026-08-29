@@ -15,14 +15,15 @@ import (
 type URLHandler struct {
 	urlService  *service.URLService
 	authService *service.AuthService
+	rateLimiter *appMiddleware.RateLimiter
 }
 
-func NewURLHandler(urlService *service.URLService, authService *service.AuthService) *URLHandler {
-	return &URLHandler{urlService: urlService, authService: authService}
+func NewURLHandler(urlService *service.URLService, authService *service.AuthService, rateLimiter *appMiddleware.RateLimiter) *URLHandler {
+	return &URLHandler{urlService: urlService, authService: authService, rateLimiter: rateLimiter}
 }
 
 func (h *URLHandler) RegisterRoutes(r chi.Router) {
-	r.With(appMiddleware.OptionalAuth(h.authService)).Post("/api/v1/shorten", h.ShortenURL)
+	r.With(appMiddleware.OptionalAuth(h.authService), h.rateLimiter.Limit).Post("/api/v1/shorten", h.ShortenURL)
 	r.Get("/{key}", h.RedirectURL)
 }
 
