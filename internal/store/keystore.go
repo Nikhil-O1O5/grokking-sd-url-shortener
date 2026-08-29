@@ -8,6 +8,34 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+type KeyStore struct {
+	db *gorm.DB
+}
+
+func NewKeyStore(db *gorm.DB) *KeyStore {
+	return &KeyStore{db: db}
+}
+
+func (s *KeyStore) ReturnKey(key string) error {
+	return ReturnKey(s.db, key)
+}
+
+func (s *KeyStore) BulkReturnKeys(keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.UsedKey{}, "key IN ?", keys).Error; err != nil {
+			return fmt.Errorf("delete used keys: %w", err)
+		}
+		unused := make([]model.UnusedKey, len(keys))
+		for i, k := range keys {
+			unused[i] = model.UnusedKey{Key: k}
+		}
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&unused).Error
+	})
+}
+
 func LoadBatch(db *gorm.DB, size int) ([]string, error) {
 	var keys []model.UnusedKey
 

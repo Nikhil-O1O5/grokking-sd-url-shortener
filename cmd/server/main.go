@@ -11,9 +11,11 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/Nikhil-O1O5/url-shortener/internal/cleanup"
 	"github.com/Nikhil-O1O5/url-shortener/internal/config"
 	"github.com/Nikhil-O1O5/url-shortener/internal/handler"
 	"github.com/Nikhil-O1O5/url-shortener/internal/kgs"
+	appMiddleware "github.com/Nikhil-O1O5/url-shortener/internal/middleware"
 	"github.com/Nikhil-O1O5/url-shortener/internal/service"
 	"github.com/Nikhil-O1O5/url-shortener/internal/store"
 )
@@ -37,7 +39,19 @@ func main() {
 	}
 	log.Println("connected to urlshortener db")
 
-	_, err = store.NewRedisClient(store.RedisConfig{
+	keyDB, err := store.NewPostgresDB(store.PostgresConfig{
+		Host:     cfg.PostgresHost,
+		Port:     cfg.PostgresPort,
+		User:     cfg.PostgresUser,
+		Password: cfg.PostgresPassword,
+		DBName:   cfg.KeyDBName,
+	})
+	if err != nil {
+		log.Fatalf("failed to connect to keydb: %v", err)
+	}
+	log.Println("connected to keydb")
+
+	rdb, err := store.NewRedisClient(store.RedisConfig{
 		Addr: cfg.RedisAddr,
 	})
 	if err != nil {
@@ -52,16 +66,24 @@ func main() {
 	defer kgsClient.Close()
 	log.Println("connected to KGS")
 
-	urlStore  := store.NewURLStore(appDB)
-	userStore := store.NewUserStore(appDB)
+	urlStore   := store.NewURLStore(appDB)
+	userStore  := store.NewUserStore(appDB)
+	cacheStore := store.NewCacheStore(rdb)
+	keyStore   := store.NewKeyStore(keyDB)
 
-	urlService  := service.NewURLService(urlStore, kgsClient)
+	urlService  := service.NewURLService(urlStore, cacheStore, keyStore, kgsClient)
 	authService := service.NewAuthService(userStore, cfg.JWTSecret)
 
-	urlHandler  := handler.NewURLHandler(urlService, authService)
+	rateLimiter := appMiddleware.NewRateLimiter(rdb)
+
+	urlHandler  := handler.NewURLHandler(urlService, authService, rateLimiter)
 	authHandler := handler.NewAuthHandler(authService)
 
 	r := handler.NewRouter(urlHandler, authHandler)
+
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	cleanupWorker := cleanup.NewWorker(urlStore, cacheStore, keyStore)
+	go cleanupWorker.Start(cleanupCtx)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPPort,
@@ -83,6 +105,8 @@ func main() {
 
 	<-quit
 	log.Println("shutting down app server...")
+
+	cleanupCancel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
