@@ -71,7 +71,7 @@ func main() {
 	cacheStore := store.NewCacheStore(rdb)
 	keyStore   := store.NewKeyStore(keyDB)
 
-	urlService  := service.NewURLService(urlStore, cacheStore, keyStore, kgsClient)
+	urlService  := service.NewURLService(urlStore, cacheStore, keyStore, kgsClient, cfg.BaseURL)
 	authService := service.NewAuthService(userStore, cfg.JWTSecret)
 
 	rateLimiter := appMiddleware.NewRateLimiter(rdb)
