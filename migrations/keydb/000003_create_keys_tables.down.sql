@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS used_keys;
+DROP TABLE IF EXISTS unused_keys;

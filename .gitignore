@@ -1,0 +1,17 @@
+# binaries
+url-shortener
+server
+kgs
+
+# env files
+.env
+.env.local
+
+# Go
+*.exe
+*.out
+*.test
+vendor/
+
+# OS
+.DS_Store
