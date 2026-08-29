@@ -9,11 +9,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 
 	"github.com/Nikhil-O1O5/url-shortener/internal/config"
+	"github.com/Nikhil-O1O5/url-shortener/internal/handler"
+	"github.com/Nikhil-O1O5/url-shortener/internal/kgs"
+	"github.com/Nikhil-O1O5/url-shortener/internal/service"
 	"github.com/Nikhil-O1O5/url-shortener/internal/store"
 )
 
@@ -36,7 +37,7 @@ func main() {
 	}
 	log.Println("connected to urlshortener db")
 
-	rdb, err := store.NewRedisClient(store.RedisConfig{
+	_, err = store.NewRedisClient(store.RedisConfig{
 		Addr: cfg.RedisAddr,
 	})
 	if err != nil {
@@ -44,22 +45,23 @@ func main() {
 	}
 	log.Println("connected to redis")
 
-	_ = appDB
-	_ = rdb
+	kgsClient, err := kgs.NewClient(cfg.KGSAddr)
+	if err != nil {
+		log.Fatalf("failed to connect to KGS: %v", err)
+	}
+	defer kgsClient.Close()
+	log.Println("connected to KGS")
 
-	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.RequestID)
+	urlStore  := store.NewURLStore(appDB)
+	userStore := store.NewUserStore(appDB)
 
-	r.Post("/api/v1/shorten", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("shorten - not implemented yet"))
-	})
+	urlService  := service.NewURLService(urlStore, kgsClient)
+	authService := service.NewAuthService(userStore, cfg.JWTSecret)
 
-	r.Get("/{key}", func(w http.ResponseWriter, r *http.Request) {
-		key := chi.URLParam(r, "key")
-		w.Write([]byte("redirect for key: " + key + " - not implemented yet"))
-	})
+	urlHandler  := handler.NewURLHandler(urlService, authService)
+	authHandler := handler.NewAuthHandler(authService)
+
+	r := handler.NewRouter(urlHandler, authHandler)
 
 	srv := &http.Server{
 		Addr:         cfg.HTTPPort,
