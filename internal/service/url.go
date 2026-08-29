@@ -90,6 +90,7 @@ func (s *URLService) ShortenURL(ctx context.Context, req ShortenRequest) (*Short
 
 func (s *URLService) ResolveURL(ctx context.Context, hash string) (*model.URL, error) {
 	if originalURL, err := s.cacheStore.GetURL(ctx, hash); err == nil && originalURL != "" {
+		go s.urlStore.IncrementHitCount(hash)
 		return &model.URL{Hash: hash, OriginalURL: originalURL}, nil
 	}
 
@@ -110,8 +111,41 @@ func (s *URLService) ResolveURL(ctx context.Context, hash string) (*model.URL, e
 		return nil, nil
 	}
 
+	go s.urlStore.IncrementHitCount(hash)
 	_ = s.cacheStore.SetURL(ctx, hash, url.OriginalURL, url.ExpiresAt)
 	return url, nil
+}
+
+type StatsResponse struct {
+	Hash        string    `json:"hash"`
+	HitCount    int64     `json:"hit_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	OriginalURL *string   `json:"original_url,omitempty"`
+}
+
+func (s *URLService) GetStats(ctx context.Context, hash string, requesterUserID *string) (*StatsResponse, error) {
+	url, err := s.urlStore.GetByHash(hash)
+	if err != nil {
+		return nil, fmt.Errorf("get stats: %w", err)
+	}
+	if url == nil {
+		return nil, nil
+	}
+
+	resp := &StatsResponse{
+		Hash:      url.Hash,
+		HitCount:  url.HitCount,
+		CreatedAt: url.CreatedAt,
+		ExpiresAt: url.ExpiresAt,
+	}
+
+	isOwner := requesterUserID != nil && url.UserID != nil && *requesterUserID == *url.UserID
+	if isOwner {
+		resp.OriginalURL = &url.OriginalURL
+	}
+
+	return resp, nil
 }
 
 // userAliasHash scopes a custom alias to its owner so two users can use the same alias

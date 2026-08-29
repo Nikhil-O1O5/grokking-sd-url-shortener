@@ -36,6 +36,13 @@ func (s *URLStore) GetByHash(hash string) (*model.URL, error) {
 	return &url, nil
 }
 
+func (s *URLStore) IncrementHitCount(hash string) error {
+	if err := s.db.Model(&model.URL{}).Where("hash = ?", hash).UpdateColumn("hit_count", gorm.Expr("hit_count + 1")).Error; err != nil {
+		return fmt.Errorf("increment hit count: %w", err)
+	}
+	return nil
+}
+
 func (s *URLStore) Delete(hash string) error {
 	result := s.db.Delete(&model.URL{}, "hash = ?", hash)
 	if result.Error != nil {

@@ -24,6 +24,7 @@ func NewURLHandler(urlService *service.URLService, authService *service.AuthServ
 
 func (h *URLHandler) RegisterRoutes(r chi.Router) {
 	r.With(appMiddleware.OptionalAuth(h.authService), h.rateLimiter.Limit).Post("/api/v1/shorten", h.ShortenURL)
+	r.With(appMiddleware.OptionalAuth(h.authService)).Get("/api/v1/stats/{hash}", h.GetStats)
 	r.Get("/{key}", h.RedirectURL)
 }
 
@@ -108,6 +109,23 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, url.OriginalURL, http.StatusFound)
+}
+
+func (h *URLHandler) GetStats(w http.ResponseWriter, r *http.Request) {
+	hash := chi.URLParam(r, "hash")
+	userID := appMiddleware.GetUserID(r.Context())
+
+	stats, err := h.urlService.GetStats(r.Context(), hash, userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to get stats"})
+		return
+	}
+	if stats == nil {
+		writeJSON(w, http.StatusNotFound, errorResponse{Error: "short URL not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
