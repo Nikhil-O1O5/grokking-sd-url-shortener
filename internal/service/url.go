@@ -150,6 +150,14 @@ func (s *URLService) GetStats(ctx context.Context, hash string, requesterUserID 
 	return resp, nil
 }
 
+func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.URL, error) {
+	urls, err := s.urlStore.GetByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user urls: %w", err)
+	}
+	return urls, nil
+}
+
 // userAliasHash scopes a custom alias to its owner so two users can use the same alias
 // without conflicting. Uses the first 8 chars of the user UUID as a prefix.
 // e.g. user 550e8400-... with alias "mylink" → "550e8400-mylink"

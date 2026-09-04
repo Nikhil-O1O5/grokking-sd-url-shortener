@@ -43,6 +43,14 @@ func (s *URLStore) IncrementHitCount(hash string) error {
 	return nil
 }
 
+func (s *URLStore) GetByUserID(userID string) ([]model.URL, error) {
+	var urls []model.URL
+	if err := s.db.Where("user_id = ? AND expires_at > NOW()", userID).Order("created_at DESC").Find(&urls).Error; err != nil {
+		return nil, fmt.Errorf("get urls by user: %w", err)
+	}
+	return urls, nil
+}
+
 func (s *URLStore) Delete(hash string) error {
 	result := s.db.Delete(&model.URL{}, "hash = ?", hash)
 	if result.Error != nil {

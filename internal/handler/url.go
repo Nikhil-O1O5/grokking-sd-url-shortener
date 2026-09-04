@@ -25,6 +25,7 @@ func NewURLHandler(urlService *service.URLService, authService *service.AuthServ
 func (h *URLHandler) RegisterRoutes(r chi.Router) {
 	r.With(appMiddleware.OptionalAuth(h.authService), h.rateLimiter.Limit).Post("/api/v1/shorten", h.ShortenURL)
 	r.With(appMiddleware.OptionalAuth(h.authService)).Get("/api/v1/stats/{hash}", h.GetStats)
+	r.With(appMiddleware.RequireAuth(h.authService)).Get("/api/v1/urls", h.GetUserURLs)
 	r.Get("/{key}", h.RedirectURL)
 }
 
@@ -109,6 +110,16 @@ func (h *URLHandler) RedirectURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, url.OriginalURL, http.StatusFound)
+}
+
+func (h *URLHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID := appMiddleware.GetUserID(r.Context())
+	urls, err := h.urlService.GetUserURLs(r.Context(), *userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "failed to fetch URLs"})
+		return
+	}
+	writeJSON(w, http.StatusOK, urls)
 }
 
 func (h *URLHandler) GetStats(w http.ResponseWriter, r *http.Request) {
